@@ -96,6 +96,16 @@ export default function ChineseSlangApp() {
   const [voiceSupported, setVoiceSupported] = useState<boolean>(false);
   const [availableVoices, setAvailableVoices] = useState<SpeechSynthesisVoice[]>([]);
 
+  // 문장 👇
+  const [sentences, setSentences] = useState<Sentence[]>([]);
+  const [allSentences, setAllSentences] = useState<Sentence[]>([]);
+  const [sentenceMode, setSentenceMode] = useState<'cn-to-kr' | 'kr-to-cn'>('cn-to-kr');
+  const [currentSentenceIndex, setCurrentSentenceIndex] = useState<number>(0);
+  const [userAnswer, setUserAnswer] = useState<string>('');
+  const [showAnswer, setShowAnswer] = useState<boolean>(false);
+  const [showGrammar, setShowGrammar] = useState<boolean>(false);
+  const [sentenceProgress, setSentenceProgress] = useState<Set<number>>(new Set());
+
   // 음성 지원 확인
   useEffect(() => {
     if ('speechSynthesis' in window) {

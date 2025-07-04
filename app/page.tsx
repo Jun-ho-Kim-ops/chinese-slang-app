@@ -92,43 +92,21 @@ export default function ChineseSlangApp() {
   const [loading, setLoading] = useState<boolean>(true);
   const [studyMode, setStudyMode] = useState<StudyMode>('browse');
   const [selectedWord, setSelectedWord] = useState<SlangWord | null>(null);
+  
   // 음성 지원 확인
   const [voiceSupported, setVoiceSupported] = useState<boolean>(false);
   const [availableVoices, setAvailableVoices] = useState<SpeechSynthesisVoice[]>([]);
-
-  // 문장 👇
+  
+  // 문장 학습 모드 상태
   const [sentences, setSentences] = useState<Sentence[]>([]);
   const [allSentences, setAllSentences] = useState<Sentence[]>([]);
+  const [filteredSentences, setFilteredSentences] = useState<Sentence[]>([]);
   const [sentenceMode, setSentenceMode] = useState<'cn-to-kr' | 'kr-to-cn'>('cn-to-kr');
   const [currentSentenceIndex, setCurrentSentenceIndex] = useState<number>(0);
   const [userAnswer, setUserAnswer] = useState<string>('');
   const [showAnswer, setShowAnswer] = useState<boolean>(false);
   const [showGrammar, setShowGrammar] = useState<boolean>(false);
   const [sentenceProgress, setSentenceProgress] = useState<Set<number>>(new Set());
-
-  // 음성 지원 확인
-  useEffect(() => {
-    if ('speechSynthesis' in window) {
-      const checkVoices = () => {
-        const voices = speechSynthesis.getVoices();
-        const chineseVoices = voices.filter(voice => 
-          voice.lang.includes('zh') || 
-          voice.lang.includes('cmn') ||
-          voice.name.includes('Chinese')
-        );
-        setAvailableVoices(chineseVoices);
-        setVoiceSupported(chineseVoices.length > 0);
-      };
-
-      // 음성 로드 완료 후 확인
-      speechSynthesis.addEventListener('voiceschanged', checkVoices);
-      checkVoices(); // 즉시 확인
-
-      return () => {
-        speechSynthesis.removeEventListener('voiceschanged', checkVoices);
-      };
-    }
-  }, []);
 
   // 데이터 로드
   useEffect(() => {
@@ -199,12 +177,53 @@ export default function ChineseSlangApp() {
     }
   };
 
+  // 카테고리 영어명을 한국어명으로 변환
+  const getCategoryName = (nameEn: string): string => {
+    const categoryMap: Record<string, string> = {
+      'gaming': '게임',
+      'tech': 'IT',
+      'culture': '문화',
+      'society': '사회',
+      'politics': '정치',
+      'economy': '경제'
+    };
+    return categoryMap[nameEn] || '';
+  };
+
+  // 문장 필터링 로직
+  useEffect(() => {
+    if (allSentences.length === 0) return;
+    
+    let filtered = allSentences;
+    
+    // 카테고리 필터링
+    if (selectedCategory !== 'all') {
+      filtered = filtered.filter(sentence => 
+        sentence.slang_words?.categories?.name === getCategoryName(selectedCategory)
+      );
+    }
+    
+    // 검색어 필터링
+    if (searchTerm) {
+      filtered = filtered.filter(sentence =>
+        sentence.chinese_text.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        sentence.korean_translation.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        sentence.slang_words?.word.toLowerCase().includes(searchTerm.toLowerCase())
+      );
+    }
+    
+    setFilteredSentences(filtered);
+    setCurrentSentenceIndex(0); // 필터링 후 첫 번째 문장으로 이동
+  }, [allSentences, selectedCategory, searchTerm]);
+
   // 문장 학습모드 진입 시 모든 문장 로드
   useEffect(() => {
     if (studyMode === 'sentence') {
       loadAllSentences();
     }
   }, [studyMode]);
+
+  // 특정 단어의 예문 로드
   const loadSentences = async (wordId: number): Promise<void> => {
     try {
       const { data, error } = await supabase
@@ -220,7 +239,7 @@ export default function ChineseSlangApp() {
     }
   };
 
-  // 검색 및 필터링
+  // 검색 및 필터링 (단어)
   useEffect(() => {
     let filtered = words;
 
@@ -256,6 +275,30 @@ export default function ChineseSlangApp() {
     localStorage.setItem('chineseSlangFavorites', JSON.stringify(Array.from(newFavorites)));
   };
 
+  // 음성 지원 확인
+  useEffect(() => {
+    if ('speechSynthesis' in window) {
+      const checkVoices = () => {
+        const voices = speechSynthesis.getVoices();
+        const chineseVoices = voices.filter(voice => 
+          voice.lang.includes('zh') || 
+          voice.lang.includes('cmn') ||
+          voice.name.includes('Chinese')
+        );
+        setAvailableVoices(chineseVoices);
+        setVoiceSupported(chineseVoices.length > 0);
+      };
+
+      // 음성 로드 완료 후 확인
+      speechSynthesis.addEventListener('voiceschanged', checkVoices);
+      checkVoices(); // 즉시 확인
+
+      return () => {
+        speechSynthesis.removeEventListener('voiceschanged', checkVoices);
+      };
+    }
+  }, []);
+
   // 로컬스토리지에서 즐겨찾기 및 문장 진도 로드
   useEffect(() => {
     const savedFavorites = localStorage.getItem('chineseSlangFavorites');
@@ -286,6 +329,8 @@ export default function ChineseSlangApp() {
     setSentenceProgress(newProgress);
     localStorage.setItem('sentenceProgress', JSON.stringify(Array.from(newProgress)));
   };
+
+  // 현재 단어
   const currentWord = filteredWords[currentWordIndex];
 
   // 다음/이전 단어
@@ -406,6 +451,7 @@ export default function ChineseSlangApp() {
           animation: fadeIn 0.3s ease-out;
         }
       `}</style>
+      
       {/* 헤더 */}
       <header className="bg-white shadow-sm border-b">
         <div className="max-w-6xl mx-auto px-4 py-4">
@@ -414,7 +460,8 @@ export default function ChineseSlangApp() {
               <BookOpen className="w-8 h-8 text-purple-600" />
               <h1 className="text-2xl font-bold text-gray-800">중국어 신조어 사전</h1>
               <span className="text-sm text-gray-500 bg-gray-100 px-2 py-1 rounded">
-                {filteredWords.length}개 단어
+                {studyMode === 'sentence' ? filteredSentences.length : filteredWords.length}개 
+                {studyMode === 'sentence' ? '문장' : '단어'}
               </span>
             </div>
             
@@ -455,29 +502,14 @@ export default function ChineseSlangApp() {
       </header>
 
       <div className="max-w-6xl mx-auto px-4 py-6">
-        {/* 음성 기능 안내 */}
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
-          <div className="flex items-start space-x-3">
-            <Volume2 className="w-5 h-5 text-blue-600 mt-0.5 flex-shrink-0" />
-            <div className="text-sm text-blue-800">
-              <p className="font-medium mb-1">🔊 음성 기능 안내</p>
-              <p>중국어 발음은 <strong>Microsoft Edge 브라우저</strong>에서 가장 잘 작동합니다. 
-              Chrome이나 Safari에서는 음성이 나오지 않을 수 있어요.</p>
-              {!voiceSupported && (
-                <p className="mt-1 text-orange-600">
-                  ⚠️ 현재 브라우저에서는 중국어 음성을 지원하지 않습니다.
-                </p>
-              )}
-            </div>
-          </div>
-        </div>
+        {/* 검색 및 필터 */}
         <div className="mb-6 space-y-4">
           {/* 검색바 */}
           <div className="relative">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
             <input
               type="text"
-              placeholder="단어, 병음, 의미로 검색..."
+              placeholder={studyMode === 'sentence' ? '문장, 단어로 검색...' : '단어, 병음, 의미로 검색...'}
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
@@ -500,13 +532,14 @@ export default function ChineseSlangApp() {
             
             {categories.map((category) => {
               const IconComponent = categoryIcons[category.icon] || Users;
+              const colorClass = categoryColors[category.name_en] || 'bg-gray-500';
               return (
                 <button
                   key={category.id}
                   onClick={() => setSelectedCategory(category.name_en)}
                   className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-colors ${
                     selectedCategory === category.name_en
-                      ? `${category.color} text-white`
+                      ? `${colorClass} text-white`
                       : 'bg-white text-gray-600 hover:bg-gray-50'
                   }`}
                 >
@@ -515,6 +548,23 @@ export default function ChineseSlangApp() {
                 </button>
               );
             })}
+          </div>
+        </div>
+
+        {/* 음성 기능 안내 */}
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+          <div className="flex items-start space-x-3">
+            <Volume2 className="w-5 h-5 text-blue-600 mt-0.5 flex-shrink-0" />
+            <div className="text-sm text-blue-800">
+              <p className="font-medium mb-1">🔊 음성 기능 안내</p>
+              <p>중국어 발음은 <strong>Microsoft Edge 브라우저</strong>에서 가장 잘 작동합니다. 
+              Chrome이나 Safari에서는 음성이 나오지 않을 수 있어요.</p>
+              {!voiceSupported && (
+                <p className="mt-1 text-orange-600">
+                  ⚠️ 현재 브라우저에서는 중국어 음성을 지원하지 않습니다.
+                </p>
+              )}
+            </div>
           </div>
         </div>
 
@@ -585,7 +635,7 @@ export default function ChineseSlangApp() {
             })}
           </div>
         ) : studyMode === 'study' ? (
-          /* 학습 모드 */
+          /* 단어 학습 모드 */
           currentWord && (
             <div className="max-w-2xl mx-auto">
               <div className="bg-white rounded-2xl p-8 shadow-lg">
@@ -707,7 +757,7 @@ export default function ChineseSlangApp() {
           )
         ) : studyMode === 'sentence' ? (
           /* 문장 연습 모드 */
-          allSentences.length > 0 && (
+          filteredSentences.length > 0 && (
             <div className="max-w-4xl mx-auto">
               <div className="bg-white rounded-2xl p-8 shadow-lg">
                 {/* 문장 연습 헤더 */}
@@ -740,25 +790,25 @@ export default function ChineseSlangApp() {
                   
                   {/* 진행률 */}
                   <div className="flex justify-between text-sm text-gray-600 mb-2">
-                    <span>{currentSentenceIndex + 1} / {allSentences.length}</span>
-                    <span>완료: {sentenceProgress.size}개 ({Math.round((sentenceProgress.size / allSentences.length) * 100)}%)</span>
+                    <span>{currentSentenceIndex + 1} / {filteredSentences.length}</span>
+                    <span>완료: {sentenceProgress.size}개 ({Math.round((sentenceProgress.size / filteredSentences.length) * 100)}%)</span>
                   </div>
                   <div className="w-full bg-gray-200 rounded-full h-2">
                     <div
                       className="bg-blue-600 h-2 rounded-full transition-all"
-                      style={{ width: `${((currentSentenceIndex + 1) / allSentences.length) * 100}%` }}
+                      style={{ width: `${((currentSentenceIndex + 1) / filteredSentences.length) * 100}%` }}
                     ></div>
                   </div>
                   <div className="w-full bg-gray-200 rounded-full h-1 mt-1">
                     <div
                       className="bg-green-500 h-1 rounded-full transition-all"
-                      style={{ width: `${(sentenceProgress.size / allSentences.length) * 100}%` }}
+                      style={{ width: `${(sentenceProgress.size / filteredSentences.length) * 100}%` }}
                     ></div>
                   </div>
                 </div>
 
                 {/* 문장 카드 */}
-                {allSentences[currentSentenceIndex] && (
+                {filteredSentences[currentSentenceIndex] && (
                   <div className="space-y-6">
                     {/* 출제 문장 */}
                     <div className="bg-gray-50 rounded-lg p-6">
@@ -768,7 +818,7 @@ export default function ChineseSlangApp() {
                         </span>
                         {voiceSupported && sentenceMode === 'cn-to-kr' && (
                           <button
-                            onClick={() => speakChinese(allSentences[currentSentenceIndex].chinese_text)}
+                            onClick={() => speakChinese(filteredSentences[currentSentenceIndex].chinese_text)}
                             className="p-2 bg-blue-100 text-blue-600 rounded-lg hover:bg-blue-200 transition-colors"
                             title="발음 듣기"
                           >
@@ -778,8 +828,8 @@ export default function ChineseSlangApp() {
                       </div>
                       <p className="text-2xl font-medium text-gray-800">
                         {sentenceMode === 'cn-to-kr' 
-                          ? allSentences[currentSentenceIndex].chinese_text
-                          : allSentences[currentSentenceIndex].korean_translation
+                          ? filteredSentences[currentSentenceIndex].chinese_text
+                          : filteredSentences[currentSentenceIndex].korean_translation
                         }
                       </p>
                     </div>
@@ -806,14 +856,14 @@ export default function ChineseSlangApp() {
                           <h4 className="font-medium text-green-800 mb-2">✅ 정답</h4>
                           <p className="text-green-700">
                             {sentenceMode === 'cn-to-kr' 
-                              ? allSentences[currentSentenceIndex].korean_translation
-                              : allSentences[currentSentenceIndex].chinese_text
+                              ? filteredSentences[currentSentenceIndex].korean_translation
+                              : filteredSentences[currentSentenceIndex].chinese_text
                             }
                           </p>
                         </div>
 
                         {/* 문법 설명 */}
-                        {allSentences[currentSentenceIndex].grammar_notes && (
+                        {filteredSentences[currentSentenceIndex].grammar_notes && (
                           <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
                             <div className="flex items-center justify-between mb-2">
                               <h4 className="font-medium text-blue-800">📚 문법 포인트</h4>
@@ -826,7 +876,7 @@ export default function ChineseSlangApp() {
                             </div>
                             {showGrammar && (
                               <p className="text-blue-700 text-sm leading-relaxed">
-                                {allSentences[currentSentenceIndex].grammar_notes}
+                                {filteredSentences[currentSentenceIndex].grammar_notes}
                               </p>
                             )}
                           </div>
@@ -836,8 +886,8 @@ export default function ChineseSlangApp() {
                         <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
                           <h4 className="font-medium text-purple-800 mb-2">💡 관련 단어</h4>
                           <p className="text-purple-700">
-                            <span className="font-medium">{(allSentences[currentSentenceIndex] as any).slang_words?.word}</span> - 
-                            <span className="ml-1">{(allSentences[currentSentenceIndex] as any).slang_words?.meaning}</span>
+                            <span className="font-medium">{filteredSentences[currentSentenceIndex].slang_words?.word}</span> - 
+                            <span className="ml-1">{filteredSentences[currentSentenceIndex].slang_words?.meaning}</span>
                           </p>
                         </div>
                       </div>
@@ -847,7 +897,7 @@ export default function ChineseSlangApp() {
                     <div className="flex justify-between items-center pt-4">
                       <button
                         onClick={() => {
-                          const newIndex = currentSentenceIndex > 0 ? currentSentenceIndex - 1 : allSentences.length - 1;
+                          const newIndex = currentSentenceIndex > 0 ? currentSentenceIndex - 1 : filteredSentences.length - 1;
                           setCurrentSentenceIndex(newIndex);
                           setUserAnswer('');
                           setShowAnswer(false);
@@ -871,8 +921,8 @@ export default function ChineseSlangApp() {
                         ) : (
                           <button
                             onClick={() => {
-                              markSentenceCompleted(allSentences[currentSentenceIndex].id);
-                              const newIndex = currentSentenceIndex < allSentences.length - 1 ? currentSentenceIndex + 1 : 0;
+                              markSentenceCompleted(filteredSentences[currentSentenceIndex].id);
+                              const newIndex = currentSentenceIndex < filteredSentences.length - 1 ? currentSentenceIndex + 1 : 0;
                               setCurrentSentenceIndex(newIndex);
                               setUserAnswer('');
                               setShowAnswer(false);
@@ -887,7 +937,7 @@ export default function ChineseSlangApp() {
 
                       <button
                         onClick={() => {
-                          const newIndex = currentSentenceIndex < allSentences.length - 1 ? currentSentenceIndex + 1 : 0;
+                          const newIndex = currentSentenceIndex < filteredSentences.length - 1 ? currentSentenceIndex + 1 : 0;
                           setCurrentSentenceIndex(newIndex);
                           setUserAnswer('');
                           setShowAnswer(false);
@@ -981,7 +1031,9 @@ export default function ChineseSlangApp() {
           </div>
         )}
 
-        {filteredWords.length === 0 && !loading && (
+        {/* 검색 결과 없음 */}
+        {((studyMode === 'sentence' && filteredSentences.length === 0) || 
+          (studyMode !== 'sentence' && filteredWords.length === 0)) && !loading && (
           <div className="text-center py-12">
             <div className="text-gray-400 mb-4">
               <Search className="w-16 h-16 mx-auto" />

@@ -919,19 +919,31 @@ export default function ChineseSlangApp() {
                             정답 확인
                           </button>
                         ) : (
-                          <button
-                            onClick={() => {
-                              markSentenceCompleted(filteredSentences[currentSentenceIndex].id);
-                              const newIndex = currentSentenceIndex < filteredSentences.length - 1 ? currentSentenceIndex + 1 : 0;
-                              setCurrentSentenceIndex(newIndex);
-                              setUserAnswer('');
-                              setShowAnswer(false);
-                              setShowGrammar(false);
-                            }}
-                            className="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
-                          >
-                            다음 문장
-                          </button>
+                          <>
+                            <button
+                              onClick={() => {
+                                setShowAnswer(false);
+                                setShowGrammar(false);
+                                setUserAnswer('');
+                              }}
+                              className="px-6 py-3 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 transition-colors"
+                            >
+                              다시 시도
+                            </button>
+                            <button
+                              onClick={() => {
+                                markSentenceCompleted(filteredSentences[currentSentenceIndex].id);
+                                const newIndex = currentSentenceIndex < filteredSentences.length - 1 ? currentSentenceIndex + 1 : 0;
+                                setCurrentSentenceIndex(newIndex);
+                                setUserAnswer('');
+                                setShowAnswer(false);
+                                setShowGrammar(false);
+                              }}
+                              className="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                            >
+                              다음 문장
+                            </button>
+                          </>
                         )}
                       </div>
 
